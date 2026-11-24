@@ -1,0 +1,84 @@
+name: Track upstream mieru releases
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mita-upstream-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out packaging repository
+        uses: actions/checkout@v5
+
+      - name: Compare upstream latest tag with package version
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 上游 tag 为 v 前缀 semver（v3.40.0 …），同时确认对应镜像存在于 ghcr.io/enfein/mita
+          mapfile -t TAGS < <(gh api "repos/enfein/mieru/tags?per_page=100" --jq '.[].name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+          if [ "${#TAGS[@]}" -eq 0 ]; then
+            echo "no semver tag found upstream; nothing to do"
+            echo "latest=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest="${TAGS[-1]}"
+          current="$(awk '/^version:/ {gsub(/[\047\042]/, "", $2); print $2; exit}' package.yml)"
+          echo "upstream latest: $latest | current: $current"
+          # 上游有 tag 但镜像尚未发布时跳过（等镜像站同步）
+          TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:enfein/mita:pull" | jq -r .token)
+          IMAGE_TAG="${latest#v}"
+          if ! curl -fsSL -o /dev/null -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            "https://ghcr.io/v2/enfein/mita/manifests/v${IMAGE_TAG}"; then
+            echo "image ghcr.io/enfein/mita:v${IMAGE_TAG} not published yet; skipping"
+            echo "latest=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          # semver 比较：逐段数字比较，上游更高则输出 newer=1
+          if node -e "
+            const a='$current', b='${latest#v}';
+            const p=(s)=>s.split('.').map(Number);
+            const [x,y,z]=p(a), [u,v,w]=p(b);
+            process.exit(u>x||(u===x&&v>y)||(u===x&&v===y&&w>z)?0:1);
+          "; then
+            echo "upstream is not newer than current; nothing to do"
+            echo "newer=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "new upstream version detected: $latest (current $current)"
+            echo "newer=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update package version and manifest image
+        if: steps.upstream.outputs.newer == '1'
+        env:
+          NEW_VERSION: ${{ steps.upstream.outputs.latest }}
+        run: |
+          set -euo pipefail
+          NEW="${NEW_VERSION#v}"
+          sed -i "s/^version: .*/version: $NEW/" package.yml
+          # 拉取新版本 amd64 digest 并更新 manifest 镜像引用（含 digest 钉住）
+          TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:enfein/mita:pull" | jq -r .token)
+          DIGEST=$(curl -fsSL -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            "https://ghcr.io/v2/enfein/mita/manifests/v${NEW}" | \
+            jq -r '.manifests[] | select(.platform.architecture=="amd64" and .platform.os=="linux") | .digest')
+          if [ -z "$DIGEST" ]; then echo "no amd64 digest found for v$NEW"; exit 1; fi
+          sed -i "s|ghcr.1ms.run/enfein/mita:v[0-9.]*@sha256:[0-9a-f]*|ghcr.1ms.run/enfein/mita:v$NEW@$DIGEST|" lzc-manifest.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.yml lzc-manifest.yml
+          git commit -m "chore: track upstream mieru $NEW_VERSION [skip ci]"
+          git push origin HEAD:main
+          echo "bumped to $NEW ($DIGEST); publish workflow will run on push"

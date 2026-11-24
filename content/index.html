@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mita — mieru 代理服务端</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 640px; margin: 48px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 1.5em; border-bottom: 2px solid #4a90d9; padding-bottom: 8px; }
+  code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; font-size: 0.95em; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #d8dde3; padding: 8px 12px; text-align: left; }
+  th { background: #f2f4f7; }
+  .note { color: #666; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>mita 服务端正在运行</h1>
+<p>这是 mieru【見える】代理体系的服务端。本应用没有管理界面——用 mieru / Clash 系客户端连接即可。</p>
+<h2>客户端连接参数</h2>
+<table>
+  <tr><th>项目</th><th>值</th></tr>
+  <tr><td>地址</td><td>懒猫主机的内网 IP（局域网）或公网地址（需路由器端口转发）</td></tr>
+  <tr><td>端口</td><td>部署时设置的「代理端口」</td></tr>
+  <tr><td>协议</td><td>mieru（TCP；部署时启用 UDP 则也可用 UDP）</td></tr>
+  <tr><td>用户名 / 密码</td><td>部署时设置的「代理用户名」「代理密码」</td></tr>
+  <tr><td>trafficPattern.seed</td><td>部署时设置的「流量特征种子」——客户端 profile 里必须填写同一个数字，否则无法建立会话</td></tr>
+</table>
+<h2>推荐客户端</h2>
+<p>桌面：mieru 官方客户端、Clash Verge Rev、Mihomo Party<br>
+安卓：ClashMetaForAndroid、ClashMi、husi + mieru plugin<br>
+iOS：Karing、ClashMi</p>
+<h2>常用维护命令（应用终端）</h2>
+<p><code>mita status</code> — 查看服务状态<br>
+<code>mita get users</code> — 查看用户用量<br>
+<code>vi /lzcapp/var/mita/server.json</code> — 编辑配置模板<br>
+<code>mita apply config /lzcapp/var/mita/server.json &amp;&amp; mita reload</code> — 应用修改</p>
+<p class="note">mieru 项目：github.com/enfein/mieru（GPL-3.0）</p>
+</body>
+</html>

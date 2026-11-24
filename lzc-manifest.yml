@@ -1,0 +1,88 @@
+application:
+  subdomain: mita
+  background_task: true
+  public_path:
+    - /
+  # 纯代理服务无 Web UI：入口页由 contentdir 静态文件提供
+  upstreams:
+    - location: /
+      backend: file:///lzcapp/pkg/content/
+  ingress:
+    - protocol: tcp
+      port: "{{ .U.proxy_port }}"
+      service: mita
+      description: "mieru proxy (TCP)"
+{{ if .U.enable_udp }}
+    - protocol: udp
+      port: "{{ .U.proxy_port }}"
+      service: mita
+      description: "mieru proxy (UDP)"
+{{ end }}
+services:
+  mita:
+    # ghcr.io/enfein/mita:v3.40.0@sha256:3e3a7685c15d2224e48dbe6bc616c4e65f7c10653242561bfc70a25ea7010e1b (upstream official image)
+    image: ghcr.1ms.run/enfein/mita:v3.40.0@sha256:3e3a7685c15d2224e48dbe6bc616c4e65f7c10653242561bfc70a25ea7010e1b
+    environment:
+      - MITA_UDS_PATH=/var/run/mita/mita.sock
+      - TZ=Asia/Shanghai
+    # 容器以 root 跑 setup（写配置）后以镜像内置 mita 用户运行；服务命令由 entrypoint.sh 接管
+    entrypoint: /bin/sh
+    command: /lzcapp/pkg/content/entrypoint.sh
+    setup_script: |
+      # 首次部署：渲染服务器配置模板（entrypoint 首次启动时经 mita apply config 写入；
+      # 真实状态文件 /etc/mita/server.conf.pb 在持久目录 /lzcapp/var/mita/etc 下，重启不丢失）
+      mkdir -p /lzcapp/var/mita
+      if [ ! -f /lzcapp/var/mita/server.json ]; then
+        cat > /lzcapp/var/mita/server.json <<'EOF'
+        {
+          "portBindings": [
+            {"port": {{ .U.proxy_port }}, "protocol": "TCP"}{{ if .U.enable_udp }},
+            {"port": {{ .U.proxy_port }}, "protocol": "UDP"}{{ end }}
+          ],
+          "users": [
+            {"name": "{{ .U.proxy_username }}", "password": "{{ .U.proxy_password }}"}
+          ],
+          "loggingLevel": "INFO",
+          "dns": {"dualStack": "PREFER_IPv4"},
+          "trafficPattern": {"seed": {{ .U.traffic_seed }}, "unlockAll": false}
+        }
+        EOF
+      fi
+    binds:
+      - /lzcapp/var/mita:/lzcapp/var/mita
+      - /lzcapp/var/mita/etc:/etc/mita
+    healthcheck:
+      test:
+        - CMD
+        - mita
+        - status
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+usage: |
+  mita 是 mieru【見える】代理体系的服务端（部署在懒猫这台机器上）；
+  客户端用 mieru / Clash 系软件连接本应用后，即可通过家中网络安全上网。
+
+  连接信息（客户端填写）：
+  - 地址：懒猫主机的公网可达地址（外网访问用公网 IP / 域名 + 路由器端口转发，
+    局域网内直接用懒猫内网 IP）
+  - 端口：部署时设置的「代理端口」（默认 28999，懒猫已自动映射）
+  - 协议：TCP（若部署时启用了 UDP，也可选 UDP）
+  - 用户名 / 密码：部署时设置的「代理用户名」「代理密码」
+    （密钥由用户名+密码+系统时间推导，客户端与服务器时间需基本一致）
+  - 流量特征种子（trafficPattern.seed）：部署时设置的「流量特征种子」。
+    客户端 profile 里必须填写同一个数字，否则无法建立会话。
+
+  客户端推荐：
+  - 桌面：mieru 官方客户端、Clash Verge Rev、Mihomo Party
+  - 安卓：ClashMetaForAndroid、ClashMi、husi + mieru plugin
+  - iOS：Karing、ClashMi
+  - 客户端传输协议选 mieru，填以上四项即可。
+
+  说明：
+  - 本应用是纯代理服务，没有 Web 管理界面；应用入口页展示连接说明。
+  - 修改用户/端口：进入应用终端运行 `mita apply config /lzcapp/var/mita/server.json`
+    （先编辑该 JSON 文件），再 `mita reload` 即可，无需重启应用。
+  - 代理端口经懒猫入站转发，外部看到的端口与设置值一致；如需从公网访问，
+    请在路由器上把该端口转发到懒猫主机。
