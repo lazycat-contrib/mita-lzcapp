@@ -144,21 +144,30 @@ onMounted(() => {
           <td class="k">{{ T[lang].user }}</td>
           <td>
             <span class="val big">{{ username }}</span>
-            <button class="cp" @click="copy('user', username)">{{ copied === 'user' ? T[lang].copied : T[lang].copy }}</button>
+            <button class="cp" :aria-label="copied === 'user' ? T[lang].copied : T[lang].copy" @click="copy('user', username)">
+              <template v-if="copied === 'user'"><span class="check">✓</span> {{ T[lang].copied }}</template>
+              <template v-else>{{ T[lang].copy }}</template>
+            </button>
           </td>
         </tr>
         <tr>
           <td class="k">{{ T[lang].pass }}</td>
           <td>
             <span class="val big">{{ password }}</span>
-            <button class="cp" @click="copy('pass', password)">{{ copied === 'pass' ? T[lang].copied : T[lang].copy }}</button>
+            <button class="cp" :aria-label="copied === 'pass' ? T[lang].copied : T[lang].copy" @click="copy('pass', password)">
+              <template v-if="copied === 'pass'"><span class="check">✓</span> {{ T[lang].copied }}</template>
+              <template v-else>{{ T[lang].copy }}</template>
+            </button>
           </td>
         </tr>
         <tr>
           <td class="k">{{ T[lang].seed }}</td>
           <td>
             <span class="val big">{{ seed }}</span>
-            <button class="cp" @click="copy('seed', seed)">{{ copied === 'seed' ? T[lang].copied : T[lang].copy }}</button>
+            <button class="cp" :aria-label="copied === 'seed' ? T[lang].copied : T[lang].copy" @click="copy('seed', seed)">
+              <template v-if="copied === 'seed'"><span class="check">✓</span> {{ T[lang].copied }}</template>
+              <template v-else>{{ T[lang].copy }}</template>
+            </button>
           </td>
         </tr>
       </table>
@@ -197,19 +206,25 @@ html[data-theme='dark']  { --bg:#14161a; --card:#1d2026; --text:#e8eaed; --muted
 body {
   font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   background: var(--bg); color: var(--text); margin: 0; padding: 32px 16px 48px;
-  line-height: 1.7; transition: background .3s ease, color .3s ease;
+  line-height: 1.7; transition: background 300ms var(--ease), color 300ms var(--ease);
 }
+:root { --ease: cubic-bezier(0.23, 1, 0.32, 1); }
 .wrap { max-width: 660px; margin: 0 auto; }
 
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-.card { animation: fadeUp .45s ease both; }
-.card:nth-of-type(2) { animation-delay: .08s; }
-.card:nth-of-type(3) { animation-delay: .16s; }
-.card:nth-of-type(4) { animation-delay: .24s; }
+.card { animation: fadeUp 450ms var(--ease) both; }
+.card:nth-of-type(2) { animation-delay: 80ms; }
+.card:nth-of-type(3) { animation-delay: 160ms; }
+.card:nth-of-type(4) { animation-delay: 240ms; }
+@media (prefers-reduced-motion: reduce) {
+  .card { animation-duration: 200ms; animation-delay: 0ms; }
+  h1 .dot { animation: none; }
+}
 
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   padding: 20px 24px; margin-bottom: 16px;
+  transition: background 300ms var(--ease), border-color 300ms var(--ease);
 }
 h1 { font-size: 1.35em; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
 h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 3px rgba(52,199,89,.18); animation: pulse 2s ease infinite; }
@@ -218,7 +233,7 @@ h1 .dot { width: 10px; height: 10px; border-radius: 50%; background: #34c759; bo
 h2 { font-size: 1.02em; margin: 0 0 12px; color: var(--accent); letter-spacing: .02em; }
 
 table { border-collapse: collapse; width: 100%; }
-td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; transition: border-color 300ms var(--ease); }
 tr:last-child td { border-bottom: none; }
 td.k { color: var(--muted); white-space: nowrap; width: 8.5em; }
 
@@ -226,7 +241,7 @@ td.k { color: var(--muted); white-space: nowrap; width: 8.5em; }
   font-family: ui-monospace, Menlo, Consolas, monospace;
   background: var(--chip); padding: 3px 8px; border-radius: 6px;
   word-break: break-all; user-select: all; font-size: .95em;
-  transition: background .2s;
+  transition: background 200ms ease;
 }
 .val.big { font-size: 1.15em; font-weight: 600; }
 .val.soft { font-family: inherit; }
@@ -235,20 +250,27 @@ td.k { color: var(--muted); white-space: nowrap; width: 8.5em; }
 .cp {
   border: 1px solid var(--border); background: transparent; color: var(--accent);
   border-radius: 6px; padding: 2px 10px; margin-left: 8px; cursor: pointer;
-  font-size: .82em; font-family: inherit; transition: all .2s;
+  font-size: .82em; font-family: inherit;
+  transition: transform 160ms var(--ease), background 200ms ease, color 200ms ease;
 }
 .cp:hover { background: var(--chip); }
+.cp:active { transform: scale(0.97); }
+.cp .check { display: inline-block; animation: checkIn 200ms var(--ease); }
+@keyframes checkIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
 
-.warn { background: var(--warnbg); border-left: 4px solid var(--warnline); padding: 10px 14px; border-radius: 8px; margin-top: 14px; font-size: .92em; }
+.warn { background: var(--warnbg); border-left: 4px solid var(--warnline); padding: 10px 14px; border-radius: 8px; margin-top: 14px; font-size: .92em; transition: background 300ms var(--ease); }
 
 .toolbar { display: flex; justify-content: space-between; align-items: center; max-width: 660px; margin: 0 auto 16px; }
-.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); transition: background 300ms var(--ease), border-color 300ms var(--ease); }
 .seg button {
   border: none; background: transparent; color: var(--muted); padding: 5px 12px;
-  cursor: pointer; font-size: .85em; transition: all .2s; font-family: inherit;
+  cursor: pointer; font-size: .85em; font-family: inherit;
+  transition: transform 160ms var(--ease), background 200ms ease, color 200ms ease;
 }
+.seg button:hover { color: var(--text); }
 .seg button.on { background: var(--accent); color: #fff; }
+.seg button:active { transform: scale(0.97); }
 .foot { color: var(--muted); font-size: .85em; text-align: center; margin-top: 8px; }
 .cli { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .88em; color: var(--muted); margin: 4px 0; }
-.cli b { color: var(--text); font-weight: 500; }
+.cli b { color: var(--text); font-weight: 500; transition: color 300ms var(--ease); }
 </style>
