@@ -3,21 +3,21 @@ application:
   background_task: true
   public_path:
     - /
-  # 纯代理服务无 Web UI：入口页由 contentdir 静态文件提供
+  # 纯代理服务无 Web UI：入口页由 setup_script 用 Go 工具渲染到持久目录
+  # （含服务器地址、端口、用户名、密码、流量种子），每次启动随配置更新
   upstreams:
     - location: /
-      backend: file:///lzcapp/pkg/content/
+      backend: file:///lzcapp/var/mita/web/
+  # ingress 不支持部署参数模板：固定 28999 双栈（TCP+UDP），server.json 端口绑定与之对应
   ingress:
     - protocol: tcp
-      port: "{{ .U.proxy_port }}"
+      port: 28999
       service: mita
       description: "mieru proxy (TCP)"
-{{ if .U.enable_udp }}
     - protocol: udp
-      port: "{{ .U.proxy_port }}"
+      port: 28999
       service: mita
       description: "mieru proxy (UDP)"
-{{ end }}
 services:
   mita:
     # ghcr.io/enfein/mita:v3.40.0@sha256:3e3a7685c15d2224e48dbe6bc616c4e65f7c10653242561bfc70a25ea7010e1b (upstream official image)
@@ -25,28 +25,46 @@ services:
     environment:
       - MITA_UDS_PATH=/var/run/mita/mita.sock
       - TZ=Asia/Shanghai
-    # 容器以 root 跑 setup（写配置）后以镜像内置 mita 用户运行；服务命令由 entrypoint.sh 接管
-    entrypoint: /bin/sh
-    command: /lzcapp/pkg/content/entrypoint.sh
+    # setup_script 与 entrypoint/command 互斥（spec）：setup 以 root 执行完后，
+    # 由镜像原生 CMD（mita run 前台）接管成为主进程
     setup_script: |
-      # 首次部署：渲染服务器配置模板（entrypoint 首次启动时经 mita apply config 写入；
-      # 真实状态文件 /etc/mita/server.conf.pb 在持久目录 /lzcapp/var/mita/etc 下，重启不丢失）
-      mkdir -p /lzcapp/var/mita
+      # 每次容器启动都会执行：准备好目录；首次启动时短暂拉起 daemon 应用一次配置，
+      # 应用成功后停掉临时 daemon 退出，随后镜像原生 `mita run` 以正式进程启动并加载已保存配置。
+      mkdir -p /lzcapp/var/mita /lzcapp/var/mita/etc /var/run/mita
+      chmod 777 /var/run/mita
+      # $random 会生成字母数字混合串，seed 必须是整数：过滤掉字母后再写入 JSON
       if [ ! -f /lzcapp/var/mita/server.json ]; then
-        cat > /lzcapp/var/mita/server.json <<'EOF'
-        {
-          "portBindings": [
-            {"port": {{ .U.proxy_port }}, "protocol": "TCP"}{{ if .U.enable_udp }},
-            {"port": {{ .U.proxy_port }}, "protocol": "UDP"}{{ end }}
-          ],
-          "users": [
-            {"name": "{{ .U.proxy_username }}", "password": "{{ .U.proxy_password }}"}
-          ],
-          "loggingLevel": "INFO",
-          "dns": {"dualStack": "PREFER_IPv4"},
-          "trafficPattern": {"seed": {{ .U.traffic_seed }}, "unlockAll": false}
-        }
-        EOF
+        SEED="{{ .U.traffic_seed }}"
+        DIGITS="$(printf '%s' "$SEED" | tr -dc '0-9')"
+        while [ ${#DIGITS} -lt 6 ]; do
+          DIGITS="${DIGITS}$(( $(date +%s%N) % 10 ))"
+        done
+        printf '{"portBindings":[{"port":28999,"protocol":"TCP"},{"port":28999,"protocol":"UDP"}],"users":[{"name":"{{ .U.proxy_username }}","password":"{{ .U.proxy_password }}"}],"loggingLevel":"INFO","dns":{"dualStack":"PREFER_IPv4"},"trafficPattern":{"seed":%s,"unlockAll":false}}\n' "$DIGITS" > /lzcapp/var/mita/server.json
+      fi
+      # 渲染连接说明页（Go 工具按架构选择，读取实际 server.json 生成，
+      # 含用户名 / 密码 / 种子 / 端口），每次启动重新渲染以保持与配置一致
+      mkdir -p /lzcapp/var/mita/bin /lzcapp/var/mita/web
+      case "$(uname -m)" in
+        aarch64|arm64) RP=/lzcapp/pkg/content/renderpage-arm64 ;;
+        *)             RP=/lzcapp/pkg/content/renderpage-amd64 ;;
+      esac
+      if [ -x "$RP" ]; then
+        cp "$RP" /lzcapp/var/mita/bin/renderpage && chmod +x /lzcapp/var/mita/bin/renderpage
+        /lzcapp/var/mita/bin/renderpage /lzcapp/var/mita/server.json /lzcapp/var/mita/web/index.html
+      fi
+      if ! mita describe config 2>/dev/null | grep -q portBindings; then
+        echo "[setup] applying initial server config"
+        mita run >/dev/null 2>&1 &
+        MITA_PID=$!
+        i=0
+        while [ $i -lt 40 ]; do
+          [ -S /var/run/mita/mita.sock ] && break
+          i=$((i+1)); sleep 0.5
+        done
+        mita apply config /lzcapp/var/mita/server.json && mita start
+        mita stop >/dev/null 2>&1 || true
+        kill $MITA_PID >/dev/null 2>&1 || true
+        wait $MITA_PID 2>/dev/null || true
       fi
     binds:
       - /lzcapp/var/mita:/lzcapp/var/mita

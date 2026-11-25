@@ -13,8 +13,8 @@ permissions:
 
 locales:
   zh:
-    name: "mita（mieru 服务端）"
-    description: "mieru【見える】服务端 mita【見た】：一款无流量特征、难以主动探测的 socks5 / HTTP / HTTPS 代理服务器。部署在懒猫微服上，桌面与手机上的 mieru / Clash 系客户端即可安全连回家中网络。"
+    name: "mita"
+    description: "无流量特征、难以主动探测的 socks5 / HTTP / HTTPS 代理服务器（mieru 服务端）。部署在懒猫微服上，桌面与手机上的 mieru / Clash 系客户端即可安全连回家中网络。"
   en:
-    name: "mita (mieru server)"
+    name: "mita"
     description: "Mieru server (mita): a censorship-resistant socks5 / HTTP / HTTPS proxy with traffic obfuscation. Deploy your own proxy server on LazyCat and connect from mieru clients on desktop and mobile."

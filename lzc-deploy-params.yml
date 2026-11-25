@@ -1,18 +1,4 @@
 params:
-  - id: proxy_port
-    type: string
-    name: "Proxy Port"
-    description: "TCP port the mita proxy listens on (1025-65535). Clients connect to this port via the LazyCat ingress."
-    default_value: "28999"
-    optional: false
-
-  - id: enable_udp
-    type: bool
-    name: "Enable UDP Protocol"
-    description: "Also expose the same port number over UDP (mieru UDP proxy protocol)."
-    default_value: "false"
-    optional: true
-
   - id: proxy_username
     type: string
     name: "Proxy Username"
@@ -30,18 +16,12 @@ params:
   - id: traffic_seed
     type: string
     name: "Traffic Pattern Seed"
-    description: "Integer seed for the obfuscation traffic pattern. MUST match the seed set in client profiles, otherwise sessions cannot be established."
-    default_value: "$random(len=6)"
+    description: "Digits-only integer seed for the obfuscation traffic pattern. MUST match the seed set in client profiles, otherwise sessions cannot be established."
+    default_value: "$random(len=9)"
     optional: false
 
 locales:
   zh:
-    proxy_port:
-      name: "代理端口"
-      description: "mita 代理监听的 TCP 端口（1025-65535），客户端通过懒猫入站端口连接它。"
-    enable_udp:
-      name: "启用 UDP 协议"
-      description: "同时以相同端口号开放 UDP 代理协议（mieru UDP 传输）。"
     proxy_username:
       name: "代理用户名"
       description: "第一个 mieru 代理用户的用户名（最长 64 字节）。"
@@ -50,4 +30,4 @@ locales:
       description: "代理用户密码（最长 64 字节）。密钥由用户名+密码+时间在两端共同推导，请保持客户端配置一致。"
     traffic_seed:
       name: "流量特征种子"
-      description: "混淆流量特征的整数种子。客户端配置里必须填写同一个种子，否则无法建立会话。"
+      description: "混淆流量特征的纯数字整数种子。客户端配置里必须填写同一个种子，否则无法建立会话。"
