@@ -1,5 +1,5 @@
 package: community.lazycat.app.mita
-version: 3.40.1
+version: 3.40.0
 name: mita
 description: "Mieru server (mita): a censorship-resistant socks5 / HTTP / HTTPS proxy with traffic obfuscation. Deploy your own proxy server on LazyCat and connect from mieru clients on desktop and mobile."
 min_os_version: 1.5.0
